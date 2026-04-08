@@ -1,8 +1,11 @@
+import { useMemo, useState } from 'react'
 import { MENU_ITEMS } from '../data/menu'
 import { useAppState } from '../context/AppStateContext.jsx'
 import { orderStatusLabel } from '../constants/orderStatus.js'
 import { formatOrderPlacedAt } from '../utils/datetime'
 import { formatWon } from '../utils/format'
+
+const ORDERS_PAGE_SIZE = 10
 
 function summarizeLines(lines) {
   return lines
@@ -30,11 +33,25 @@ function stockBadgeText(qty) {
 
 export default function AdminPage() {
   const { orders, inventory, adjustStock, setOrderStatus } = useAppState()
+  const [page, setPage] = useState(0)
 
   const totalCount = orders.length
   const receivedCount = orders.filter((o) => o.status === 'received').length
   const preparingCount = orders.filter((o) => o.status === 'preparing').length
   const completedCount = orders.filter((o) => o.status === 'completed').length
+
+  const totalPages = Math.max(1, Math.ceil(orders.length / ORDERS_PAGE_SIZE))
+  const lastPageIdx = totalPages - 1
+  const pageIdx = Math.min(page, lastPageIdx)
+
+  const pagedOrders = useMemo(
+    () =>
+      orders.slice(
+        pageIdx * ORDERS_PAGE_SIZE,
+        (pageIdx + 1) * ORDERS_PAGE_SIZE,
+      ),
+    [orders, pageIdx],
+  )
 
   return (
     <div className="admin-page">
@@ -111,50 +128,82 @@ export default function AdminPage() {
         {orders.length === 0 ? (
           <p className="admin-orders__empty">접수된 주문이 없습니다.</p>
         ) : (
-          <ul className="admin-orders">
-            {orders.map((order) => (
-              <li key={order.id} className="admin-order-row">
-                <div className="admin-order-row__main">
-                  <time
-                    className="admin-order-row__time"
-                    dateTime={new Date(order.placedAt).toISOString()}
-                  >
-                    {formatOrderPlacedAt(order.placedAt)}
-                  </time>
-                  <p className="admin-order-row__menu">
-                    {summarizeLines(order.lines)}
-                  </p>
-                  <p className="admin-order-row__price">{formatWon(order.total)}</p>
-                  <p className="admin-order-row__status">
-                    {orderStatusLabel[order.status]}
-                  </p>
-                </div>
-                <div className="admin-order-row__action">
-                  {order.status === 'received' ? (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={() => setOrderStatus(order.id, 'preparing')}
+          <>
+            <ul className="admin-orders">
+              {pagedOrders.map((order) => (
+                <li key={order.id} className="admin-order-row">
+                  <div className="admin-order-row__main">
+                    <time
+                      className="admin-order-row__time"
+                      dateTime={new Date(order.placedAt).toISOString()}
                     >
-                      제조 시작
-                    </button>
-                  ) : null}
-                  {order.status === 'preparing' ? (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={() => setOrderStatus(order.id, 'completed')}
-                    >
-                      제조 완료
-                    </button>
-                  ) : null}
-                  {order.status === 'completed' ? (
-                    <span className="admin-order-row__done">처리 완료</span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+                      {formatOrderPlacedAt(order.placedAt)}
+                    </time>
+                    <p className="admin-order-row__menu">
+                      {summarizeLines(order.lines)}
+                    </p>
+                    <p className="admin-order-row__price">
+                      {formatWon(order.total)}
+                    </p>
+                    <p className="admin-order-row__status">
+                      {orderStatusLabel[order.status]}
+                    </p>
+                  </div>
+                  <div className="admin-order-row__action">
+                    {order.status === 'received' ? (
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        onClick={() => setOrderStatus(order.id, 'preparing')}
+                      >
+                        제조 시작
+                      </button>
+                    ) : null}
+                    {order.status === 'preparing' ? (
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        onClick={() => setOrderStatus(order.id, 'completed')}
+                      >
+                        제조 완료
+                      </button>
+                    ) : null}
+                    {order.status === 'completed' ? (
+                      <span className="admin-order-row__done">처리 완료</span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {totalPages > 1 ? (
+              <nav
+                className="admin-pagination"
+                aria-label="주문 목록 페이지"
+              >
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={pageIdx <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  이전
+                </button>
+                <span className="admin-pagination__info">
+                  {pageIdx + 1} / {totalPages} 페이지 (총 {orders.length}건)
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={pageIdx >= lastPageIdx}
+                  onClick={() =>
+                    setPage((p) => Math.min(lastPageIdx, p + 1))
+                  }
+                >
+                  다음
+                </button>
+              </nav>
+            ) : null}
+          </>
         )}
       </section>
     </div>

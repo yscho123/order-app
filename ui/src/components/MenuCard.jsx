@@ -1,10 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { formatWon } from '../utils/format'
 
 /**
- * @param {{ item: import('../data/menu').MenuItem, onAdd: (menuId: string, optionIds: string[]) => void }} props
+ * @param {{
+ *   item: import('../data/menu').MenuItem,
+ *   stockQty: number,
+ *   onAdd: (menuId: string, optionIds: string[]) => void,
+ * }} props
  */
-export default function MenuCard({ item, onAdd }) {
+export default function MenuCard({ item, stockQty, onAdd }) {
+  const formId = useId()
   const initialOpts = useMemo(
     () =>
       Object.fromEntries(item.options.map((o) => [o.id, false])),
@@ -12,11 +17,14 @@ export default function MenuCard({ item, onAdd }) {
   )
   const [opts, setOpts] = useState(initialOpts)
 
+  const outOfStock = stockQty <= 0
+
   function toggleOption(optionId) {
     setOpts((prev) => ({ ...prev, [optionId]: !prev[optionId] }))
   }
 
   function handleAdd() {
+    if (outOfStock) return
     const selectedIds = item.options
       .filter((o) => opts[o.id])
       .map((o) => o.id)
@@ -24,7 +32,7 @@ export default function MenuCard({ item, onAdd }) {
   }
 
   return (
-    <article className="menu-card">
+    <article className="menu-card" aria-labelledby={`${formId}-title`}>
       <div
         className={
           item.image
@@ -35,7 +43,7 @@ export default function MenuCard({ item, onAdd }) {
         {item.image ? (
           <img
             src={item.image}
-            alt={`${item.name} 사진`}
+            alt=""
             className="menu-card__photo"
             loading="lazy"
           />
@@ -45,31 +53,55 @@ export default function MenuCard({ item, onAdd }) {
           </span>
         )}
       </div>
-      <h2 className="menu-card__title">{item.name}</h2>
+      <h2 className="menu-card__title" id={`${formId}-title`}>
+        {item.name}
+      </h2>
       <p className="menu-card__price">{formatWon(item.price)}</p>
       <p className="menu-card__desc">{item.description}</p>
+      <p className="menu-card__stock" aria-live="polite">
+        재고 {stockQty}개
+        {outOfStock ? (
+          <span className="menu-card__stock--out"> (품절)</span>
+        ) : null}
+      </p>
       <ul className="menu-card__options">
-        {item.options.map((o) => (
-          <li key={o.id}>
-            <label className="menu-card__option-label">
+        {item.options.map((o) => {
+          const optId = `${formId}-opt-${o.id}`
+          return (
+            <li key={o.id}>
               <input
+                id={optId}
+                className="menu-card__checkbox"
                 type="checkbox"
                 checked={opts[o.id]}
                 onChange={() => toggleOption(o.id)}
+                disabled={outOfStock}
               />
-              <span>
-                {o.name}{' '}
-                (
-                {o.extraPrice === 0
-                  ? '+0원'
-                  : `+${o.extraPrice.toLocaleString('ko-KR')}원`}
-                )
-              </span>
-            </label>
-          </li>
-        ))}
+              <label className="menu-card__option-label" htmlFor={optId}>
+                <span>
+                  {o.name}{' '}
+                  (
+                  {o.extraPrice === 0
+                    ? '+0원'
+                    : `+${o.extraPrice.toLocaleString('ko-KR')}원`}
+                  )
+                </span>
+              </label>
+            </li>
+          )
+        })}
       </ul>
-      <button type="button" className="btn btn--primary menu-card__add" onClick={handleAdd}>
+      <button
+        type="button"
+        className="btn btn--primary menu-card__add"
+        onClick={handleAdd}
+        disabled={outOfStock}
+        aria-label={
+          outOfStock
+            ? `${item.name}, 품절로 담을 수 없음`
+            : `${item.name} 장바구니에 담기`
+        }
+      >
         담기
       </button>
     </article>
