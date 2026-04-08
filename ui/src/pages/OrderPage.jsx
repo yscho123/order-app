@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useAppState } from '../context/AppStateContext.jsx'
 import { MENU_ITEMS, getMenuItemById } from '../data/menu'
 import MenuCard from '../components/MenuCard'
 import CartPanel from '../components/CartPanel'
@@ -10,6 +11,7 @@ function lineKey(menuId, optionIds) {
 }
 
 export default function OrderPage() {
+  const { addOrder } = useAppState()
   const [lines, setLines] = useState([])
   const [orderMessage, setOrderMessage] = useState(null)
 
@@ -41,6 +43,7 @@ export default function OrderPage() {
         ...prev,
         {
           key,
+          menuId,
           name: item.name,
           optionLabels,
           quantity: 1,
@@ -52,8 +55,21 @@ export default function OrderPage() {
 
   function placeOrder() {
     if (lines.length === 0) return
-    // 백엔드 연동 전: 로컬 피드백만
-    setOrderMessage('주문이 접수되었습니다. (데모 — 서버 연동 전)')
+    const orderLines = lines.map((l) => ({
+      menuId: l.menuId,
+      name: l.name,
+      optionLabels: l.optionLabels,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+    }))
+    addOrder({
+      id: crypto.randomUUID(),
+      placedAt: Date.now(),
+      lines: orderLines,
+      total,
+      status: 'received',
+    })
+    setOrderMessage('주문이 접수되었습니다. 관리자 화면에서 확인할 수 있습니다.')
     setLines([])
   }
 
