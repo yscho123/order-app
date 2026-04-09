@@ -1,6 +1,12 @@
 import { formatWon } from '../utils/format'
 
-export default function CartPanel({ lines, total, onPlaceOrder, message }) {
+export default function CartPanel({
+  lines,
+  total,
+  onPlaceOrder,
+  message,
+  orderDisabled = false,
+}) {
   return (
     <section className="cart-panel" aria-labelledby="cart-heading">
       <h2 id="cart-heading" className="cart-panel__title">
@@ -54,7 +60,7 @@ export default function CartPanel({ lines, total, onPlaceOrder, message }) {
             type="button"
             className="btn btn--primary cart-panel__order"
             onClick={onPlaceOrder}
-            disabled={lines.length === 0}
+            disabled={lines.length === 0 || orderDisabled}
           >
             주문하기
           </button>

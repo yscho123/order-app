@@ -1,8 +1,17 @@
 import express from 'express'
+import cors from 'cors'
 import { pool } from './db/pool.js'
+import { menusRouter } from './routes/menus.js'
+import { ordersRouter } from './routes/orders.js'
 
 const app = express()
 
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+)
 app.use(express.json())
 
 app.get('/health', (_req, res) => {
@@ -32,5 +41,8 @@ app.get('/health/db', async (_req, res) => {
     })
   }
 })
+
+app.use('/api/menus', menusRouter)
+app.use('/api/orders', ordersRouter)
 
 export default app

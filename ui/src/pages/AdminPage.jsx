@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { MENU_ITEMS } from '../data/menu'
 import { useAppState } from '../context/AppStateContext.jsx'
 import { orderStatusLabel } from '../constants/orderStatus.js'
 import { formatOrderPlacedAt } from '../utils/datetime'
@@ -32,7 +31,16 @@ function stockBadgeText(qty) {
 }
 
 export default function AdminPage() {
-  const { orders, inventory, adjustStock, setOrderStatus } = useAppState()
+  const {
+    orders,
+    menus,
+    inventory,
+    adjustStock,
+    setOrderStatus,
+    ready,
+    loadError,
+    bootstrap,
+  } = useAppState()
   const [page, setPage] = useState(0)
 
   const totalCount = orders.length
@@ -88,37 +96,54 @@ export default function AdminPage() {
         <h2 id="inventory-heading" className="admin-section__title">
           재고 현황
         </h2>
-        <div className="admin-inventory">
-          {MENU_ITEMS.map((item) => {
-            const qty = inventory[item.id] ?? 0
-            return (
-              <article key={item.id} className="admin-inventory__card">
-                <h3 className="admin-inventory__name">{item.name}</h3>
-                <p className="admin-inventory__qty">{qty}개</p>
-                <p className={stockBadgeClass(qty)}>{stockBadgeText(qty)}</p>
-                <div className="admin-inventory__controls">
-                  <button
-                    type="button"
-                    className="btn btn--square btn--primary"
-                    aria-label={`${item.name} 재고 1 증가`}
-                    onClick={() => adjustStock(item.id, 1)}
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--square btn--primary"
-                    aria-label={`${item.name} 재고 1 감소`}
-                    disabled={qty <= 0}
-                    onClick={() => adjustStock(item.id, -1)}
-                  >
-                    −
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
+        {!ready ? (
+          <p role="status">메뉴를 불러오는 중…</p>
+        ) : loadError ? (
+          <div role="alert">
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void bootstrap()}
+            >
+              다시 시도
+            </button>
+          </div>
+        ) : menus.length === 0 ? (
+          <p role="status">등록된 메뉴가 없습니다.</p>
+        ) : (
+          <div className="admin-inventory">
+            {menus.map((item) => {
+              const qty = inventory[item.id] ?? 0
+              return (
+                <article key={item.id} className="admin-inventory__card">
+                  <h3 className="admin-inventory__name">{item.name}</h3>
+                  <p className="admin-inventory__qty">{qty}개</p>
+                  <p className={stockBadgeClass(qty)}>{stockBadgeText(qty)}</p>
+                  <div className="admin-inventory__controls">
+                    <button
+                      type="button"
+                      className="btn btn--square btn--primary"
+                      aria-label={`${item.name} 재고 1 증가`}
+                      onClick={() => void adjustStock(item.id, 1)}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--square btn--primary"
+                      aria-label={`${item.name} 재고 1 감소`}
+                      disabled={qty <= 0}
+                      onClick={() => void adjustStock(item.id, -1)}
+                    >
+                      −
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       <section className="admin-section" aria-labelledby="orders-heading">

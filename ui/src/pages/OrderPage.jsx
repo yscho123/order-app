@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAppState } from '../context/AppStateContext.jsx'
-import { MENU_ITEMS, getMenuItemById } from '../data/menu'
+import {
+  findMenuById,
+  useAppState,
+} from '../context/AppStateContext.jsx'
 import MenuCard from '../components/MenuCard'
 import CartPanel from '../components/CartPanel'
-import { newOrderId } from '../utils/newId.js'
 import {
   canAddOneToCart,
   validateOrderAgainstStock,
@@ -18,10 +19,18 @@ function lineKey(menuId, optionIds) {
 const STOCK_MSG_MS = 4000
 
 export default function OrderPage() {
-  const { addOrder, inventory } = useAppState()
+  const {
+    menus,
+    inventory,
+    ready,
+    loadError,
+    bootstrap,
+    createOrder,
+  } = useAppState()
   const [lines, setLines] = useState([])
   const [orderMessage, setOrderMessage] = useState(null)
   const [stockMessage, setStockMessage] = useState(null)
+  const [placing, setPlacing] = useState(false)
   const stockTimerRef = useRef(null)
 
   const total = useMemo(
@@ -46,7 +55,7 @@ export default function OrderPage() {
 
   const addToCart = useCallback(
     (menuId, optionIds) => {
-      const item = getMenuItemById(menuId)
+      const item = findMenuById(menus, menuId)
       if (!item) return
 
       if (!canAddOneToCart(lines, inventory, menuId)) {
@@ -79,42 +88,94 @@ export default function OrderPage() {
             menuId,
             name: item.name,
             optionLabels,
+            optionIds: [...optionIds],
             quantity: 1,
             unitPrice,
           },
         ]
       })
     },
-    [lines, inventory],
+    [lines, inventory, menus],
   )
 
-  function placeOrder() {
-    if (lines.length === 0) return
+  async function placeOrder() {
+    if (lines.length === 0 || placing) return
     const check = validateOrderAgainstStock(lines, inventory)
     if (!check.ok) {
-      const name = getMenuItemById(check.menuId)?.name ?? check.menuId
+      const name =
+        findMenuById(menus, check.menuId)?.name ?? check.menuId
       flashStockMessage(
         `재고가 부족합니다. (${name}: 필요 ${check.need}개, 보유 ${check.have}개)`,
       )
       return
     }
 
-    const orderLines = lines.map((l) => ({
-      menuId: l.menuId,
-      name: l.name,
-      optionLabels: l.optionLabels,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-    }))
-    addOrder({
-      id: newOrderId(),
-      placedAt: Date.now(),
-      lines: orderLines,
-      total,
-      status: 'received',
-    })
-    setOrderMessage('주문이 접수되었습니다. 관리자 화면에서 확인할 수 있습니다.')
-    setLines([])
+    setPlacing(true)
+    setOrderMessage(null)
+    try {
+      await createOrder(
+        lines.map((l) => ({
+          menuId: l.menuId,
+          optionIds: l.optionIds ?? [],
+          quantity: l.quantity,
+        })),
+      )
+      setOrderMessage(
+        '주문이 접수되었습니다. 관리자 화면에서 확인할 수 있습니다.',
+      )
+      setLines([])
+    } catch (e) {
+      if (e.status === 409 && e.body?.error === 'insufficient_stock') {
+        const mid = e.body.menuId
+        const name = findMenuById(menus, mid)?.name ?? mid
+        flashStockMessage(
+          `재고가 부족합니다. (${name}: 필요 ${e.body.need}개, 보유 ${e.body.have}개)`,
+        )
+      } else {
+        flashStockMessage(
+          e.message || '주문 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+        )
+      }
+    } finally {
+      setPlacing(false)
+    }
+  }
+
+  if (!ready) {
+    return (
+      <div className="order-page">
+        <p className="order-page__loading" role="status">
+          메뉴를 불러오는 중…
+        </p>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="order-page">
+        <div className="order-page__error" role="alert">
+          <p>{loadError}</p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void bootstrap()}
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (menus.length === 0) {
+    return (
+      <div className="order-page">
+        <p className="order-page__empty" role="status">
+          등록된 메뉴가 없습니다. 서버 DB 시드(migrate/seed)를 확인해 주세요.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -130,7 +191,7 @@ export default function OrderPage() {
       </div>
       <div className="order-page__menu">
         <div className="menu-grid">
-          {MENU_ITEMS.map((item) => (
+          {menus.map((item) => (
             <MenuCard
               key={item.id}
               item={item}
@@ -143,8 +204,9 @@ export default function OrderPage() {
       <CartPanel
         lines={lines}
         total={total}
-        onPlaceOrder={placeOrder}
+        onPlaceOrder={() => void placeOrder()}
         message={orderMessage}
+        orderDisabled={placing}
       />
     </div>
   )
